@@ -15,8 +15,9 @@ app.use(express.static('public'));
 app.get('/api/products', async (req, res) => {
   try {
     const rows = await all('SELECT id, sku, name, category, price, stock FROM products');
-    res.json(rowsToObjects(rows));
+    res.json(rows);
   } catch (err) {
+    console.error('GET ERR:', err);
     res.status(500).json({error: err.message});
   }
 });
