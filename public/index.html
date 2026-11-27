@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MedDist Inventory</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Arial,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#1f2933;background:#f8fafc}
+    h1{font-size:1.75rem;margin:0 0 .25rem}
+    .sub{color:#64748b;font-size:.9rem;margin-bottom:1.75rem}
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .card h2{font-size:1.05rem;margin:0 0 .75rem}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem}
+    .grid .full{grid-column:1/-1}
+    label{display:block;font-size:.8rem;color:#475569;margin-bottom:.2rem}
+    input,select{width:100%;padding:.5rem .6rem;border:1px solid #cbd5e1;border-radius:6px;font-size:.9rem}
+    input:focus,select;:focus{outline:2px solid #2563eb;outline-offset:1px}
+    .actions{margin-top:.9rem;display:flex;gap:.5rem}
+    button{padding:.55rem 1rem;border:none;border-radius:6px;font-size:.88rem;cursor:pointer;font-weight:500}
+    .btn-primary{background:#2563eb;color:#fff}
+    .btn-primary:hover{background:#1d4ed8}
+    .btn-ghost{background:#e2e8f0;color:#334155}
+    .btn-ghost:hover{background:#cbd5e1}
+    .btn-sm{padding:.35rem .6rem;font-size:.78rem;border-radius:5px}
+    .btn-edit{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+    .btn-del{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:.65rem .6rem;text-align:left;font-size:.88rem;border-bottom:1px solid #e2e8f0}
+    th{color:#64748b;font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
+    tbody tr:hover{background:#f8fafc}
+    .num{text-align:right;font-variant-numeric:tabular-nums}
+    .empty{color:#94a3b8;text-align:center;padding:2rem}
+    .toast{position:fixed;top:1rem;right:1rem;padding:.75rem 1rem;border-radius:8px;font-size:.85rem;color:#fff;opacity:0;transform:translateY(-8px);transition:.25s;pointer-events:none}
+    .toast.show{opacity:1;transform:translateY(0)}
+    .toast.ok{background:#059669}
+    .toast.err{background:#dc2626}
+    .badge{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.72rem;background:#f1f5f9;color:#475569}
+  </style>
+</head>
+<body>
+  <h1>MedDist Inventory</h1>
+  <div class="sub">Manajemen stok alat kesehatan &middot; Node.js + Express + SQLite</div>
+
+  <div class="card">
+    <h2 id="formTitle">Tambah Produk</h2>
+    <form id="productForm">
+      <input type="hidden" id="productId">
+      <div class="grid">
+        <div><label for="sku">SKU</label><input id="sku" placeholder="MED-006" required></div>
+        <div><label for="name">Nama Produk</label><input id="name" placeholder="Tensimeter Digital" required></div>
+        <div><label for="category">Kategori</label><input id="category" placeholder="Diagnostik"></div>
+        <div><label for="price">Harga (Rp)</label><input id="price" type="number" min="0" step="1" required></div>
+        <div><label for="stock">Stok</label><input id="stock" type="number" min="0" step="1" required></div>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn-primary" id="submitBtn">Simpan</button>
+        <button type="button" class="btn-ghost" id="resetBtn">Reset</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Daftar Produk (<span id="count">0</span>)</h2>
+    <table>
+      <thead>
+        <tr><th>SKU</th><th>Nama</th><th>Kategori</th><th class="num">Harga</th><th class="num">Stok</th><th></th></tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const rupiah = (n) => 'Rp ' + Number(n).toLocaleString('id-ID');
+    const toast = (msg, ok = true) => {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'toast show ' + (ok ? 'ok' : 'err');
+      setTimeout(() => (el.className = 'toast'), 2200);
+    };
+
+    async function load() {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      const tbody = document.getElementById('tbody');
+      document.getElementById('count').textContent = data.length;
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Belum ada produk</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.map(p => `
+        <tr>
+          <td>${p.sku}</td>
+          <td>${p.name}</td>
+          <td><span class="badge">${p.category || 'Umum'}</span></td>
+          <td class="num">${rupiah(p.price)}</td>
+          <td class="num">${p.stock}</td>
+          <td style="white-space:nowrap">
+            <button class="btn-sm btn-edit" data-id="${p.id}">Edit</button>
+            <button class="btn-sm btn-del" data-id="${p.id}">Hapus</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    const form = document.getElementById('productForm');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('productId').value;
+      const payload = {
+        sku: document.getElementById('sku').value.trim(),
+        name: document.getElementById('name').value.trim(),
+        category: document.getElementById('category').value.trim(),
+        price: Number(document.getElementById('price').value),
+        stock: Number(document.getElementById('stock').value),
+      };
+      const res = await fetch(id ? '/api/products/' + id : '/api/products', {
+        method: id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const out = await res.json();
+      toast(res.ok ? (out.message || 'Tersimpan') : 'Gagal: ' + (out.error || 'error'), res.ok);
+      if (res.ok) { resetForm(); load(); }
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', resetForm);
+
+    function resetForm() {
+      form.reset();
+      document.getElementById('productId').value = '';
+      document.getElementById('formTitle').textContent = 'Tambah Produk';
+      document.getElementById('submitBtn').textContent = 'Simpan';
+    }
+
+    document.getElementById('tbody').addEventListener('click', async (e) => {
+      const id = e.target.dataset.id;
+      if (!id) return;
+      if (e.target.classList.contains('btn-del')) {
+        if (!confirm('Hapus produk ini?')) return;
+        const res = await fetch('/api/products/' + id, { method: 'DELETE' });
+        const out = await res.json();
+        toast(res.ok ? (out.message || 'Dihapus') : 'Gagal', res.ok);
+        load();
+      }
+      if (e.target.classList.contains('btn-edit')) {
+        const res = await fetch('/api/products');
+        const data = await res.json();
+        const p = data.find(x => String(x.id) === String(id));
+        if (!p) return;
+        document.getElementById('productId').value = p.id;
+        document.getElementById('sku').value = p.sku;
+        document.getElementById('name').value = p.name;
+        document.getElementById('category').value = p.category || '';
+        document.getElementById('price').value = p.price;
+        document.getElementById('stock').value = p.stock;
+        document.getElementById('formTitle').textContent = 'Edit Produk';
+        document.getElementById('submitBtn').textContent = 'Perbarui';
+        document.getElementById('sku').focus();
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "meddist-web",
+  "version": "1.0.0",
+  "description": "MedDist - Web inventory management untuk distributor alat kesehatan",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "echo \"no tests yet\""
+  },
+  "author": "drivetrue",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "sql.js": "^1.17.0"
+  }
+}
